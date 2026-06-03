@@ -4,7 +4,7 @@ import re
 import os
 
 # NUOVA API KEY
-API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_3ZzyZ-QpKHCyfcRUka3QKqMfthARb_baNFIR3gnxwlk")
+API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_eYG0cuuk1jkNcpIWUbvTiKCE11OKR4gGniXqeqzmMPY")
 
 def run(cmd, capture=False):
     if capture:
