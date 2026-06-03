@@ -12,24 +12,23 @@ def run(cmd, capture=False):
         subprocess.run(cmd, shell=True)
 
 def login_and_get_cookies():
-    print("🚀 Login con navigazione a /surf/...")
+    print("🚀 Login con attesa MOLTO lunga per cookie...")
     
-    # Pulizia iniziale
-    print("🧹 Pulizia sessioni...")
+    # Pulizia
     run("browser-use close --all")
     time.sleep(3)
-    
-    print(f"🔑 Configura API key...")
     run(f"browser-use config set api_key {API_KEY}")
     time.sleep(2)
     
+    # Connessione
     print("🔌 Connessione al Cloud...")
     run("browser-use cloud connect")
     time.sleep(5)
     
+    # Login
     print("🌐 Apertura login...")
     run("browser-use open https://www.easyhits4u.com/logon/")
-    time.sleep(20)
+    time.sleep(25)
     
     print("📝 Compilazione form...")
     run('browser-use keys "Tab"')
@@ -44,84 +43,84 @@ def login_and_get_cookies():
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
     
-    print("⏳ Attesa redirect a /account/ (20 secondi)...")
-    time.sleep(20)
+    print("⏳ Attesa redirect a /surf/ (45 secondi)...")
+    time.sleep(45)
     
     print("🎯 Navigazione a /surf/?surftype=2&q=start...")
     run("browser-use open https://www.easyhits4u.com/surf/?surftype=2&q=start")
     
-    print("⏳ Attesa caricamento pagina surf (15 secondi)...")
-    time.sleep(15)
+    # --- ATTESA MOLTO LUNGA PER I COOKIE ---
+    print("⏳ ATTESA MOLTO LUNGA per caricamento cookie (90 secondi)...")
+    print("   I cookie sesids e user_id arrivano dopo molto tempo!")
+    time.sleep(90)
     
-    # Prova a cliccare Start Surfing con indice invece che testo
-    print("🖱️ Cerco indice di Start Surfing...")
-    state = run("browser-use state", capture=True)
-    if state and state.stdout:
-        lines = state.stdout.split('\n')
-        for line in lines:
-            if 'Start Surfing' in line and 'button' in line.lower():
-                match = re.search(r'\[(\d+)\]', line)
-                if match:
-                    idx = match.group(1)
-                    print(f"   Trovato Start Surfing all'indice {idx}")
-                    run(f'browser-use click "{idx}"')
-                    break
+    # Tentativi con attesa crescente
+    print("\n🍪 Estrazione cookie con tentativi prolungati...")
     
-    time.sleep(10)
-    
-    # METODO PIÙ DIRETTO: usa browser-use cookies export
-    print("\n🍪 Esportazione cookie con 'cookies export'...")
-    run("browser-use cookies export /tmp/cookies.json")
-    time.sleep(2)
-    
-    # Leggi il file esportato
-    try:
-        with open("/tmp/cookies.json", "r") as f:
-            cookies_data = f.read()
-        print(f"   Cookie export: {cookies_data[:500]}")
+    for attempt in range(20):
+        print(f"   Tentativo {attempt+1}/20 (attesa {3 + attempt}s prima del tentativo)...")
         
-        sesids = re.search(r'"sesids"\s*:\s*"([^"]+)"', cookies_data)
-        user_id = re.search(r'"user_id"\s*:\s*"([^"]+)"', cookies_data)
+        # Attesa crescente tra i tentativi
+        time.sleep(3 + attempt // 2)
         
-        if sesids and user_id:
-            print(f"\n🎉 SUCCESSO da export! sesids={sesids.group(1)}, user_id={user_id.group(1)}")
-            return sesids.group(1), user_id.group(1)
-    except Exception as e:
-        print(f"   Errore lettura export: {e}")
+        # Prova con export
+        run("browser-use cookies export /tmp/cookies.json")
+        time.sleep(1)
+        
+        try:
+            with open("/tmp/cookies.json", "r") as f:
+                cookies_data = f.read()
+            
+            sesids = re.search(r'"sesids"\s*:\s*"([^"]+)"', cookies_data)
+            user_id = re.search(r'"user_id"\s*:\s*"([^"]+)"', cookies_data)
+            
+            if sesids and user_id:
+                print(f"\n🎉🎉🎉 SUCCESSO! 🎉🎉🎉")
+                print(f"   sesids = {sesids.group(1)}")
+                print(f"   user_id = {user_id.group(1)}")
+                return sesids.group(1), user_id.group(1)
+        except:
+            pass
+        
+        # Prova con document.cookie
+        doc = run("browser-use eval 'document.cookie'", capture=True)
+        doc_text = doc.stdout if doc else ""
+        
+        sesids_match = re.search(r'sesids=([^;]+)', doc_text)
+        user_id_match = re.search(r'user_id=([^;]+)', doc_text)
+        
+        if sesids_match and user_id_match:
+            print(f"\n🎉 SUCCESSO via document.cookie!")
+            print(f"   sesids = {sesids_match.group(1)}")
+            print(f"   user_id = {user_id_match.group(1)}")
+            return sesids_match.group(1), user_id_match.group(1)
+        
+        # Mostra progresso ogni 5 tentativi
+        if attempt % 5 == 0:
+            cookies_found = re.findall(r'([a-z_]+)=', doc_text)
+            print(f"      Cookie attuali: {cookies_found[:10]}")
     
-    # Backup: prova browser-use cookies get con formato JSON
-    print("\n🍪 browser-use cookies get...")
-    cookies = run("browser-use cookies get", capture=True)
-    cookies_text = cookies.stdout if cookies else ""
-    print(f"   Output: {cookies_text[:800]}")
-    
-    sesids_match = re.search(r'sesids=([^;]+)', cookies_text) or re.search(r"'sesids':\s*'([^']+)'", cookies_text)
-    user_id_match = re.search(r'user_id=([^;]+)', cookies_text) or re.search(r"'user_id':\s*'([^']+)'", cookies_text)
-    
-    if sesids_match and user_id_match:
-        print(f"\n🎉 SUCCESSO! sesids={sesids_match.group(1)}, user_id={user_id_match.group(1)}")
-        return sesids_match.group(1), user_id_match.group(1)
-    
-    print("\n❌ Cookie non trovati")
+    print("\n❌ Cookie non trovati dopo 20 tentativi e attesa totale di ~5 minuti")
     return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
     print("Browser Use Cloud - EasyHits4U")
-    print(f"API Key: {API_KEY[:30]}...")
+    print("ATTESA MOLTO LUNGA per cookie (fino a 5 minuti)")
     print("=" * 60)
     
+    start_time = time.time()
     sesids, user_id = login_and_get_cookies()
+    elapsed = int(time.time() - start_time)
     
     print("\n" + "=" * 60)
+    print(f"Tempo totale: {elapsed} secondi")
     if sesids and user_id:
-        print("🎉🎉🎉 RISULTATO FINALE: SUCCESSO! 🎉🎉🎉")
+        print("🎉🎉🎉 SUCCESSO! 🎉🎉🎉")
         print(f"   sesids = {sesids}")
         print(f"   user_id = {user_id}")
     else:
-        print("❌ RISULTATO FINALE: FALLITO")
-        print("\n💡 I cookie potrebbero essere HTTP-only e non accessibili")
-        print("   Dovremmo usare l'API v2 di Browser Use")
+        print("❌ FALLITO")
     print("=" * 60)
     
     run("browser-use close --all")
