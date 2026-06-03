@@ -70,10 +70,12 @@ def login_and_get_cookies():
     
     # Ora che Turnstile è completo, prendi i cookie
     print("🍪 Estrazione cookie di sessione...")
-    cookies = run("browser-use cookies get", capture=True)
+    cookies_result = run("browser-use cookies get", capture=True)
+    cookies_text = cookies_result.stdout
     
-    sesids_match = re.search(r"'sesids': '([^']+)'", cookies.stdout)
-    user_id_match = re.search(r"'user_id': '([^']+)'", cookies.stdout)
+    # Estrai i cookie con regex corretta
+    sesids_match = re.search(r"'sesids': '([^']+)'", cookies_text)
+    user_id_match = re.search(r"'user_id': '([^']+)'", cookies_text)
     
     sesids = sesids_match.group(1) if sesids_match else None
     user_id = user_id_match.group(1) if user_id_match else None
@@ -81,7 +83,9 @@ def login_and_get_cookies():
     if sesids and user_id:
         print(f"🎉 SUCCESSO! sesids={sesids}, user_id={user_id}")
     else:
-        print(f"⚠️ Cookie target non trovati. Cookies disponibili: {re.findall(r\"'name': '([^']+)'\", cookies.stdout)}")
+        # Versione CORRETTA della regex (senza errori)
+        cookie_names = re.findall(r"'name': '([^']+)'", cookies_text)
+        print(f"⚠️ Cookie target non trovati. Cookies disponibili: {cookie_names}")
     
     return sesids, user_id
 
