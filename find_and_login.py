@@ -12,7 +12,7 @@ def run(cmd, capture=False):
         subprocess.run(cmd, shell=True)
 
 def login_and_get_cookies():
-    print("🚀 Avvio con verifica Turnstile...")
+    print("🚀 Login e navigazione a /surf/...")
     
     # Cleanup
     run("browser-use close --all")
@@ -25,20 +25,12 @@ def login_and_get_cookies():
     run("browser-use cloud connect")
     time.sleep(5)
     
-    # 1. Apri login
+    # 1. Vai al login
     print("🌐 Apertura login...")
     run("browser-use open https://www.easyhits4u.com/logon/")
+    time.sleep(25)
     
-    # 2. Attesa che React e Turnstile carichino
-    print("⏳ Attesa React e Turnstile (30 secondi)...")
-    time.sleep(30)
-    
-    # 3. Verifica se il form è presente
-    print("🔍 Verifica presenza form...")
-    form_check = run("browser-use eval 'document.querySelector(\"input[name=username]\") !== null'", capture=True)
-    print(f"   Form presente: {form_check.stdout.strip() if form_check else 'unknown'}")
-    
-    # 4. Compila form
+    # 2. Compila
     print("📝 Compilazione form...")
     run('browser-use type "sandrominori50+ulugarecexisa@gmail.com"')
     time.sleep(1)
@@ -47,96 +39,77 @@ def login_and_get_cookies():
     run('browser-use type "DDnmVV45!!"')
     time.sleep(1)
     
-    # 5. Invio login
+    # 3. Invia
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
+    time.sleep(15)
     
-    # 6. Attesa con verifica URL ogni secondo
-    print("⏳ Monitoraggio URL per 60 secondi...")
-    dashboard_reached = False
+    # 4. NAVIGA DIRETTAMENTE ALL'URL CHE SETTA I COOKIE
+    target_url = "https://www.easyhits4u.com/surf/?surftype=2&q=start"
+    print(f"🎯 Navigazione a: {target_url}")
+    run(f"browser-use open {target_url}")
     
-    for attempt in range(60):
-        time.sleep(1)
-        result = run("browser-use eval 'window.location.href'", capture=True)
-        url = result.stdout.strip() if result else ""
-        url = url.replace("result: ", "").strip()
+    # 5. ATTESA LUNGA per il caricamento e l'impostazione dei cookie
+    print("⏳ Attesa che i cookie vengano impostati (40 secondi)...")
+    time.sleep(40)
+    
+    # 6. Prendi i cookie da quell'URL
+    print("\n🍪 Estrazione cookie...")
+    
+    for attempt in range(15):
+        print(f"   Tentativo {attempt+1}/15...")
         
-        if attempt % 10 == 0:
-            print(f"   [{attempt}s] URL: {url[:80] if url else 'empty'}")
+        # Prendi cookie
+        cookies = run("browser-use cookies get", capture=True)
+        cookies_text = cookies.stdout if cookies else ""
         
-        if "/account/" in url or "/surf/" in url:
-            print(f"\n✅ Dashboard raggiunta dopo {attempt} secondi!")
-            dashboard_reached = True
-            break
+        # Cerca sesids e user_id
+        sesids = re.search(r'sesids=([^;]+)', cookies_text)
+        user_id = re.search(r'user_id=([^;]+)', cookies_text)
         
-        if "warning" in url:
-            print(f"   ⚠️ Warning page a {attempt}s, aspetto...")
-    
-    if not dashboard_reached:
-        # Controllo finale
-        final_url = run("browser-use eval 'window.location.href'", capture=True)
-        print(f"\n📍 URL finale: {final_url.stdout if final_url else 'unknown'}")
+        # Prova anche formato JSON
+        if not sesids:
+            sesids = re.search(r"'sesids':\s*'([^']+)'", cookies_text)
+        if not user_id:
+            user_id = re.search(r"'user_id':\s*'([^']+)'", cookies_text)
         
-        # Verifica se c'è un errore di login
-        error_check = run("browser-use eval 'document.body.innerText.includes(\"Incorrect\")'", capture=True)
-        if "true" in (error_check.stdout if error_check else ""):
-            print("❌ Errore: Credenziali non corrette")
-        else:
-            print("❌ Login fallito - possibile blocco Turnstile")
+        if sesids and user_id:
+            sesids_val = sesids.group(1) if hasattr(sesids, 'group') else sesids
+            user_id_val = user_id.group(1) if hasattr(user_id, 'group') else user_id
+            print(f"\n🎉🎉🎉 SUCCESSO! 🎉🎉🎉")
+            print(f"   sesids = {sesids_val}")
+            print(f"   user_id = {user_id_val}")
+            return sesids_val, user_id_val
         
-        return None, None
-    
-    # 7. Attesa extra per cookie
-    print("\n⏳ Attesa cookie (20 secondi)...")
-    time.sleep(20)
-    
-    # 8. Estrai cookie
-    print("🍪 Estrazione cookie...")
-    
-    doc = run("browser-use eval 'document.cookie'", capture=True)
-    doc_text = doc.stdout if doc else ""
-    print(f"document.cookie: {doc_text[:300]}")
-    
-    cookies = run("browser-use cookies get", capture=True)
-    cookies_text = cookies.stdout if cookies else ""
-    print(f"browser-use cookies get: {cookies_text[:500]}")
-    
-    # Cerca sesids e user_id
-    sesids = None
-    user_id = None
-    
-    match = re.search(r'sesids=([^;]+)', doc_text)
-    if match:
-        sesids = match.group(1)
-    
-    match = re.search(r'user_id=([^;]+)', doc_text)
-    if match:
-        user_id = match.group(1)
-    
-    if not sesids:
-        match = re.search(r"'sesids':\s*'([^']+)'", cookies_text)
-        if match:
-            sesids = match.group(1)
-    
-    if not user_id:
-        match = re.search(r"'user_id':\s*'([^']+)'", cookies_text)
-        if match:
-            user_id = match.group(1)
-    
-    if sesids and user_id:
-        print(f"\n🎉 SUCCESSO! sesids={sesids}, user_id={user_id}")
-        return sesids, user_id
+        if attempt % 5 == 0:
+            # Mostra i cookie trovati
+            found = re.findall(r'([a-z_]+)=', cookies_text)
+            print(f"      Cookie trovati: {found[:10] if found else 'nessuno'}")
+        
+        time.sleep(3)
     
     print("\n❌ Cookie non trovati")
     return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
+    print("Browser Use Cloud - EasyHits4U")
+    print(f"Target: /surf/?surftype=2&q=start")
+    print("=" * 60)
+    
     sesids, user_id = login_and_get_cookies()
-    print("=" * 60)
+    
+    print("\n" + "=" * 60)
     if sesids and user_id:
-        print(f"🎉 RISULTATO: sesids={sesids}, user_id={user_id}")
+        print("🎉🎉🎉 RISULTATO FINALE: SUCCESSO! 🎉🎉🎉")
+        print(f"   sesids = {sesids}")
+        print(f"   user_id = {user_id}")
     else:
-        print("❌ FALLITO")
+        print("❌ RISULTATO FINALE: FALLITO")
+        print("\n💡 Possibili cause:")
+        print("   1. Turnstile non risolto")
+        print("   2. Credenziali errate")
+        print("   3. Tempi di attesa insufficienti")
     print("=" * 60)
+    
     run("browser-use close --all")
