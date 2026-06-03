@@ -11,6 +11,31 @@ def run(cmd, capture=False):
     else:
         subprocess.run(cmd, shell=True)
 
+def wait_for_turnstile_complete():
+    """Attende che Turnstile sia completato - max 60 secondi"""
+    print("🔍 Attesa completamento Turnstile...")
+    
+    for attempt in range(30):
+        # Controlla se l'iframe Turnstile è scomparso
+        iframe_check = run("browser-use eval 'document.querySelector(\"iframe[src*=\\\"challenges.cloudflare.com\\\"]\") === null'", capture=True)
+        
+        # Controlla se cf_clearance è presente
+        cookies = run("browser-use cookies get", capture=True)
+        has_cf = "cf_clearance" in cookies.stdout
+        
+        # Controlla se siamo sulla dashboard
+        url_check = run("browser-use eval 'window.location.href.includes(\"/account/\") || window.location.href.includes(\"/surf/\")'", capture=True)
+        
+        if iframe_check.stdout.strip() == "true" and has_cf and url_check.stdout.strip() == "true":
+            print(f"✅ Turnstile completato! (tentativo {attempt + 1})")
+            return True
+        
+        print(f"⏳ Attesa... iframe gone={iframe_check.stdout.strip()[:5]}, cf={has_cf}")
+        time.sleep(2)
+    
+    print("⚠️ Timeout: Turnstile non completato entro 60 secondi")
+    return False
+
 def login_and_get_cookies():
     print("🚀 Login con metodo TAB...")
     
@@ -38,46 +63,27 @@ def login_and_get_cookies():
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
     
-    print("⏳ Attesa redirect (20 secondi)...")
-    time.sleep(20)  # Attesa più lunga per il redirect completo
-    
-    # Verifica URL
-    result = run("browser-use eval 'window.location.href'", capture=True)
-    current_url = result.stdout.strip()
-    print(f"📍 URL: {current_url}")
-    
-    if "/account/" in current_url or "/surf/" in current_url:
-        print("✅ LOGIN SUCCESS!")
-        
-        # --- ATTESA EXTRA PER I COOKIE DI SESSIONE ---
-        print("⏳ Attesa cookie di sessione (10 secondi extra)...")
-        time.sleep(10)
-        
-        # Prova a prendere i cookie MULTIPLE VOLTE
-        for attempt in range(3):
-            print(f"🍪 Tentativo {attempt + 1}/3 di prendere i cookie...")
-            cookies = run("browser-use cookies get", capture=True)
-            
-            sesids_match = re.search(r"'sesids': '([^']+)'", cookies.stdout)
-            user_id_match = re.search(r"'user_id': '([^']+)'", cookies.stdout)
-            
-            sesids = sesids_match.group(1) if sesids_match else None
-            user_id = user_id_match.group(1) if user_id_match else None
-            
-            if sesids and user_id:
-                print(f"🎉 SUCCESSO al tentativo {attempt + 1}!")
-                print(f"🎉 sesids={sesids}")
-                print(f"🎉 user_id={user_id}")
-                return sesids, user_id
-            
-            print(f"⚠️ Cookie non ancora pronti, aspetto 5 secondi...")
-            time.sleep(5)
-        
-        print("❌ Cookie non trovati dopo 3 tentativi")
+    # ATTESA INTELLIGENTE: aspetta che Turnstile sia completato
+    if not wait_for_turnstile_complete():
+        print("❌ Turnstile non completato, abort")
         return None, None
+    
+    # Ora che Turnstile è completo, prendi i cookie
+    print("🍪 Estrazione cookie di sessione...")
+    cookies = run("browser-use cookies get", capture=True)
+    
+    sesids_match = re.search(r"'sesids': '([^']+)'", cookies.stdout)
+    user_id_match = re.search(r"'user_id': '([^']+)'", cookies.stdout)
+    
+    sesids = sesids_match.group(1) if sesids_match else None
+    user_id = user_id_match.group(1) if user_id_match else None
+    
+    if sesids and user_id:
+        print(f"🎉 SUCCESSO! sesids={sesids}, user_id={user_id}")
     else:
-        print(f"❌ Login fallito. URL: {current_url}")
-        return None, None
+        print(f"⚠️ Cookie target non trovati. Cookies disponibili: {re.findall(r\"'name': '([^']+)'\", cookies.stdout)}")
+    
+    return sesids, user_id
 
 if __name__ == "__main__":
     sesids, user_id = login_and_get_cookies()
