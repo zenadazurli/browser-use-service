@@ -11,66 +11,63 @@ def run(cmd, capture=False):
     else:
         subprocess.run(cmd, shell=True)
 
-def login_with_tab():
+def login_and_get_cookies():
     print("🚀 Login con metodo TAB...")
     
-    # Pulisci e connetti
     run("browser-use close --all")
     time.sleep(2)
     run(f"browser-use config set api_key {API_KEY}")
     run("browser-use cloud connect")
     time.sleep(3)
     
-    # Apri la pagina
     run("browser-use open https://www.easyhits4u.com/logon/")
     
-    # ATTESA REACT (20 secondi)
     print("⏳ Attesa React (20 secondi)...")
     time.sleep(20)
     
-    # METODO TAB (quello che funzionava in locale!)
     print("📝 Compilazione con TAB...")
-    
-    # Tab al primo campo
     run('browser-use keys "Tab"')
     time.sleep(1)
-    
-    # Digita username/email
     run('browser-use type "sandrominori50+ulugarecexisa@gmail.com"')
     time.sleep(1)
-    
-    # Tab al campo password
     run('browser-use keys "Tab"')
     time.sleep(1)
-    
-    # Digita password
     run('browser-use type "DDnmVV45!!"')
     time.sleep(1)
     
-    # Enter per inviare
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
     
-    # Attendi redirect
     print("⏳ Attesa redirect (15 secondi)...")
     time.sleep(15)
     
-    # Verifica URL
+    # Verifica URL (accetta sia /account/ che /surf/)
     result = run("browser-use eval 'window.location.href'", capture=True)
-    print(f"📍 URL: {result.stdout}")
+    current_url = result.stdout.strip()
+    print(f"📍 URL: {current_url}")
     
-    if "/surf/" in result.stdout:
+    # CONTROLLO CORRETTO
+    if "/account/" in current_url or "/surf/" in current_url:
         print("✅ LOGIN SUCCESS!")
         
-        # Prendi cookie
+        # Prendi i cookie
         cookies = run("browser-use cookies get", capture=True)
+        print(f"🍪 Cookie raw: {cookies.stdout[:500]}")
+        
         sesids_match = re.search(r"'sesids': '([^']+)'", cookies.stdout)
         user_id_match = re.search(r"'user_id': '([^']+)'", cookies.stdout)
         
-        print(f"🎉 sesids={sesids_match.group(1) if sesids_match else None}")
-        print(f"🎉 user_id={user_id_match.group(1) if user_id_match else None}")
+        sesids = sesids_match.group(1) if sesids_match else None
+        user_id = user_id_match.group(1) if user_id_match else None
+        
+        print(f"🎉 sesids={sesids}")
+        print(f"🎉 user_id={user_id}")
+        
+        return sesids, user_id
     else:
-        print("❌ Login fallito")
+        print(f"❌ Login fallito. URL: {current_url}")
+        return None, None
 
 if __name__ == "__main__":
-    login_with_tab()
+    sesids, user_id = login_and_get_cookies()
+    print(f"\n📊 RISULTATO FINALE: sesids={sesids}, user_id={user_id}")
