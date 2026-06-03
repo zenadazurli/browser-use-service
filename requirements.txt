@@ -1,0 +1,5 @@
+# Browser Use core (già installato con uv, ma per sicurezza)
+browser-use>=0.1.0
+
+# Per logging e utilità
+python-dotenv>=1.0.0
