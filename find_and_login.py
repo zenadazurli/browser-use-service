@@ -108,7 +108,7 @@ def find_and_login():
         
         # Compila username
         log(f"Compilo username con indice {username_idx}...")
-        run(f'browser-use type "{username_idx}" "paninutella@spaces0.it"')
+        run(f'browser-use type "{username_idx}" "sandrominori50+ulugarecexisa@gmail.com"')
         time.sleep(1)
         
         # Compila password
