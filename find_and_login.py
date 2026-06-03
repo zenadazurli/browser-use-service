@@ -3,8 +3,7 @@ import time
 import re
 import os
 
-# NUOVA API KEY
-API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_81hV55sAhAWBUmxoE0vrDX1g9yAL3zTSSNZO73IxwEc")
+API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_erc0JdqWNeyDyHgpqBRbZc38O3thjYdStPz_tw3FofU")
 
 def run(cmd, capture=False):
     if capture:
@@ -12,43 +11,28 @@ def run(cmd, capture=False):
     else:
         subprocess.run(cmd, shell=True)
 
-def kill_all_sessions():
-    """Chiude TUTTE le sessioni attive"""
-    print("🔪 Chiusura forzata di tutte le sessioni...")
-    run("browser-use close --all")
-    run("browser-use cloud logout")
-    time.sleep(5)
-    
-    # Prova a chiudere con v2 API se necessario
-    run("browser-use cloud v2 DELETE /browsers")
-    time.sleep(2)
-
 def login_and_get_cookies():
-    print("🚀 Login con chiusura preventiva sessioni...")
+    print("🚀 Login con debug URL...")
     
-    # CHIUDI TUTTO prima di iniziare
-    kill_all_sessions()
-    
-    # Configura API key
+    # Chiudi sessioni precedenti
+    run("browser-use close --all")
+    time.sleep(2)
     run(f"browser-use config set api_key {API_KEY}")
     
-    # Connetti al cloud
-    print("🔌 Connessione al Browser Use Cloud...")
-    result = run("browser-use cloud connect", capture=True)
-    print(result.stdout if result else "Connessione avviata")
-    time.sleep(5)
+    # Connetti
+    print("🔌 Connessione al Cloud...")
+    run("browser-use cloud connect")
+    time.sleep(3)
     
-    # Apri pagina login
-    print("🌐 Apertura pagina login...")
+    # Apri login
+    print("🌐 Apertura login...")
     run("browser-use open https://www.easyhits4u.com/logon/")
     time.sleep(5)
     
-    # Attesa React iniziale
-    print("⏳ Attesa React (25 secondi)...")
-    time.sleep(25)
+    print("⏳ Attesa React (30 secondi)...")
+    time.sleep(30)
     
-    # Compilazione form
-    print("📝 Compilazione form...")
+    print("📝 Compilazione...")
     run('browser-use keys "Tab"')
     time.sleep(1)
     run('browser-use type "sandrominori50+ulugarecexisa@gmail.com"')
@@ -58,57 +42,74 @@ def login_and_get_cookies():
     run('browser-use type "DDnmVV45!!"')
     time.sleep(1)
     
-    # Invio login
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
     
-    # Attesa dashboard
-    print("⏳ Attesa caricamento dashboard (max 60 secondi)...")
-    time.sleep(60)
+    # === MONITORAGGIO URL ===
+    print("⏳ Monitoraggio URL per 90 secondi...")
+    final_url = None
     
-    # TENTATIVI PER PRENDERE I COOKIE
-    print("\n🍪 Ricerca cookie di sessione...")
+    for attempt in range(90):
+        time.sleep(1)
+        result = run("browser-use eval 'window.location.href'", capture=True)
+        current_url = result.stdout.strip() if result else ""
+        
+        # Pulisci il testo (rimuovi "result: " se presente)
+        current_url = current_url.replace("result: ", "").strip()
+        
+        if attempt % 10 == 0:
+            print(f"   [{attempt}s] URL: {current_url[:80]}")
+        
+        if "/account/" in current_url or "/surf/" in current_url:
+            print(f"\n✅ Dashboard raggiunta dopo {attempt} secondi!")
+            print(f"   URL: {current_url}")
+            final_url = current_url
+            break
+        
+        if "warning" in current_url:
+            print(f"⚠️ Warning page rilevata a {attempt} secondi!")
     
-    for attempt in range(10):
-        print(f"   Tentativo {attempt + 1}/10...")
-        
-        # Leggi document.cookie
-        doc_cookies = run("browser-use eval 'document.cookie'", capture=True)
-        doc_text = doc_cookies.stdout
-        
-        sesids_match = re.search(r'sesids=([^;]+)', doc_text)
-        user_id_match = re.search(r'user_id=([^;]+)', doc_text)
-        
-        if sesids_match and user_id_match:
-            sesids = sesids_match.group(1)
-            user_id = user_id_match.group(1)
-            print(f"\n🎉 SUCCESSO AL TENTATIVO {attempt + 1}!")
-            print(f"   sesids = {sesids}")
-            print(f"   user_id = {user_id}")
-            return sesids, user_id
-        
-        time.sleep(5)
+    if not final_url:
+        # Controllo finale
+        final_result = run("browser-use eval 'window.location.href'", capture=True)
+        final_url = final_result.stdout.strip() if final_result else ""
+        print(f"\n📍 URL finale dopo timeout: {final_url}")
     
-    print("\n❌ Cookie non trovati dopo 10 tentativi")
+    # Attesa extra dopo dashboard
+    print("\n⏳ Attesa cookie (30 secondi extra)...")
+    time.sleep(30)
+    
+    # Tentativi cookie
+    print("🍪 Ricerca cookie...")
+    for attempt in range(15):
+        print(f"   Tentativo {attempt+1}/15...")
+        
+        # document.cookie
+        doc = run("browser-use eval 'document.cookie'", capture=True)
+        doc_text = doc.stdout if doc else ""
+        
+        sesids = re.search(r'sesids=([^;]+)', doc_text)
+        user_id = re.search(r'user_id=([^;]+)', doc_text)
+        
+        if sesids and user_id:
+            print(f"\n🎉 SUCCESSO! sesids={sesids.group(1)}, user_id={user_id.group(1)}")
+            return sesids.group(1), user_id.group(1)
+        
+        if attempt % 5 == 0 and doc_text:
+            print(f"      Cookie attuali: {re.findall(r'([a-z_]+)=', doc_text)[:5]}")
+        
+        time.sleep(4)
+    
+    print("\n❌ Cookie non trovati")
     return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Browser Use Cloud - EasyHits4U Login")
-    print(f"API Key: {API_KEY[:20]}...")
-    print("=" * 60)
-    
     sesids, user_id = login_and_get_cookies()
-    
-    print("\n" + "=" * 60)
-    if sesids and user_id:
-        print("🎉 RISULTATO FINALE: SUCCESSO!")
-        print(f"   sesids = {sesids}")
-        print(f"   user_id = {user_id}")
-    else:
-        print("❌ RISULTATO FINALE: FALLITO")
     print("=" * 60)
-    
-    # Chiudi sessione alla fine
-    print("\n🔚 Chiusura sessione...")
+    if sesids and user_id:
+        print(f"🎉 SUCCESSO! sesids={sesids}, user_id={user_id}")
+    else:
+        print("❌ FALLITO")
+    print("=" * 60)
     run("browser-use close --all")
