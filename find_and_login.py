@@ -3,101 +3,99 @@ import time
 import re
 import os
 
-API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_GK40fU_usliPi1of1qtW314GVH4VixyDqx4AhN6Hulc")
+# NUOVA API KEY
+API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_j5cD-CjtrMt_B0ZeLbjY63JzanTQIRjeaROaJYfLs54")
 
-def run(cmd, capture=False):
-    if capture:
-        return subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    else:
-        subprocess.run(cmd, shell=True)
+def run_sync(cmd, timeout=60):
+    """Esegue un comando e aspetta la risposta prima di continuare"""
+    print(f"   > {cmd[:80]}...")
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+    if result.stdout:
+        print(f"   < {result.stdout[:100].strip()}")
+    return result
+
+def wait_for_element(selector, timeout=60):
+    """Aspetta che un elemento sia presente nel DOM"""
+    print(f"⏳ Attesa elemento: {selector}")
+    start = time.time()
+    while time.time() - start < timeout:
+        result = run_sync(f'browser-use eval "document.querySelector(\'{selector}\') !== null"', timeout=10)
+        if "true" in result.stdout:
+            print(f"✅ Elemento trovato! ({int(time.time() - start)}s)")
+            return True
+        time.sleep(2)
+    print(f"❌ Elemento non trovato dopo {timeout}s")
+    return False
 
 def login_and_get_cookies():
-    print("🚀 Login con attesa elemento dashboard...")
+    print("🚀 Login sincronizzato con Browser Use...")
     
-    # Pulizia
-    run("browser-use close --all")
+    # 1. Pulizia
+    print("\n[1] Pulizia sessioni...")
+    run_sync("browser-use close --all")
     time.sleep(2)
-    run(f"browser-use config set api_key {API_KEY}")
-    time.sleep(2)
-    
-    # Connessione
-    print("🔌 Connessione al Cloud...")
-    run("browser-use cloud connect")
-    time.sleep(5)
-    
-    # Apri login
-    print("🌐 Apertura login...")
-    run("browser-use open https://www.easyhits4u.com/logon/")
-    time.sleep(20)
-    
-    # Compila form
-    print("📝 Compilazione form...")
-    run('browser-use keys "Tab"')
-    time.sleep(1)
-    run('browser-use type "sandrominori50+ulugarecexisa@gmail.com"')
-    time.sleep(1)
-    run('browser-use keys "Tab"')
-    time.sleep(1)
-    run('browser-use type "DDnmVV45!!"')
+    run_sync(f"browser-use config set api_key {API_KEY}")
     time.sleep(1)
     
-    # Invio login
-    print("🔑 Invio login...")
-    run('browser-use keys "Enter"')
+    # 2. Connessione
+    print("\n[2] Connessione al Cloud...")
+    result = run_sync("browser-use cloud connect")
+    if "connected" not in result.stdout:
+        print("   Connessione fallita, riprovo...")
+        time.sleep(3)
+        result = run_sync("browser-use cloud connect")
+    print("✅ Connesso!")
+    time.sleep(3)
     
-    # === ATTESA INTELLIGENTE: aspetta che un elemento della dashboard sia visibile ===
-    print("\n⏳ Attesa che la dashboard carichi (aspetto elemento '.userinfo .text')...")
+    # 3. Apri login
+    print("\n[3] Apertura pagina login...")
+    run_sync("browser-use open https://www.easyhits4u.com/logon/")
     
-    max_wait = 60  # 60 secondi massimo
-    dashboard_loaded = False
+    # 4. Aspetta form
+    print("\n[4] Attesa caricamento form...")
+    wait_for_element('input[name="username"]', timeout=30)
     
-    for attempt in range(max_wait):
-        time.sleep(1)
+    # 5. Compila username
+    print("\n[5] Compilazione username...")
+    run_sync('browser-use type "sandrominori50+ulugarecexisa@gmail.com"')
+    time.sleep(1)
+    
+    # 6. Tab al password
+    print("\n[6] Vai al campo password...")
+    run_sync('browser-use keys "Tab"')
+    time.sleep(1)
+    
+    # 7. Compila password
+    print("\n[7] Compilazione password...")
+    run_sync('browser-use type "DDnmVV45!!"')
+    time.sleep(1)
+    
+    # 8. Invio login
+    print("\n[8] Invio login...")
+    run_sync('browser-use keys "Enter"')
+    
+    # 9. Attesa dashboard
+    print("\n[9] Attesa dashboard...")
+    if wait_for_element('.userinfo .text', timeout=60):
+        print("✅ Dashboard raggiunta!")
         
-        # Cerca l'elemento che appare SOLO quando sei loggato
-        # In questo caso, il nome utente nel menu
-        check = run("browser-use eval 'document.querySelector(\".userinfo .text\") !== null'", capture=True)
-        
-        if "true" in check.stdout:
-            print(f"✅ Dashboard caricata! (tentativo {attempt + 1} secondi)")
-            dashboard_loaded = True
-            break
-        
-        if attempt % 10 == 0:
-            print(f"   Attesa... {attempt}/{max_wait} secondi")
-    
-    # Verifica anche l'URL come fallback
-    result = run("browser-use eval 'window.location.href'", capture=True)
-    current_url = result.stdout.strip() if result else ""
-    print(f"📍 URL attuale: {current_url}")
-    
-    if not dashboard_loaded and ("/account/" in current_url or "/surf/" in current_url):
-        print("✅ Dashboard rilevata da URL!")
-        dashboard_loaded = True
-    
-    if dashboard_loaded:
-        print("\n✅ LOGIN CONFERMATO!")
-        
-        # Attesa extra per i cookie
-        print("⏳ Attesa cookie di sessione (10 secondi)...")
+        # 10. Attesa cookie
+        print("\n[10] Attesa cookie di sessione (10s)...")
         time.sleep(10)
         
-        # Prendi i cookie
-        print("\n🍪 Estrazione cookie...")
-        
+        # 11. Prendi cookie con retry
+        print("\n[11] Estrazione cookie...")
         for attempt in range(10):
             print(f"   Tentativo {attempt+1}/10...")
+            result = run_sync("browser-use cookies get")
             
-            cookies = run("browser-use cookies get", capture=True)
-            cookies_text = cookies.stdout if cookies else ""
-            
-            sesids = re.search(r'sesids=([^;]+)', cookies_text)
+            sesids = re.search(r'sesids=([^;]+)', result.stdout)
             if not sesids:
-                sesids = re.search(r"'sesids':\s*'([^']+)'", cookies_text)
+                sesids = re.search(r"'sesids':\s*'([^']+)'", result.stdout)
             
-            user_id = re.search(r'user_id=([^;]+)', cookies_text)
+            user_id = re.search(r'user_id=([^;]+)', result.stdout)
             if not user_id:
-                user_id = re.search(r"'user_id':\s*'([^']+)'", cookies_text)
+                user_id = re.search(r"'user_id':\s*'([^']+)'", result.stdout)
             
             if sesids and user_id:
                 print(f"\n🎉🎉🎉 SUCCESSO! 🎉🎉🎉")
@@ -105,29 +103,27 @@ def login_and_get_cookies():
                 print(f"   user_id = {user_id.group(1)}")
                 return sesids.group(1), user_id.group(1)
             
-            time.sleep(2)
+            time.sleep(3)
         
-        print("⚠️ Cookie target non trovati, ma login OK")
-        return "login_ok", "login_ok"
+        print("❌ Cookie non trovati dopo 10 tentativi")
+    else:
+        print("❌ Dashboard non raggiunta")
     
-    print("❌ Login fallito - dashboard non raggiunta")
     return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Browser Use Cloud - Attesa Elemento Dashboard")
+    print("Browser Use Cloud - Modalità Sincrona")
+    print(f"API Key: {API_KEY[:30]}...")
     print("=" * 60)
     
     sesids, user_id = login_and_get_cookies()
     
     print("\n" + "=" * 60)
     if sesids and user_id:
-        if sesids == "login_ok":
-            print("✅ Login OK, ma cookie HTTP-only non accessibili")
-        else:
-            print(f"🎉 SUCCESSO! sesids={sesids}, user_id={user_id}")
+        print(f"🎉 RISULTATO: sesids={sesids}, user_id={user_id}")
     else:
         print("❌ FALLITO")
     print("=" * 60)
     
-    run("browser-use close --all")
+    run_sync("browser-use close --all")
