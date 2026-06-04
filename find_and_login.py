@@ -3,7 +3,8 @@ import time
 import re
 import os
 
-API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_j5cD-CjtrMt_B0ZeLbjY63JzanTQIRjeaROaJYfLs54")
+# NUOVA API KEY
+API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_IIv4wqnq3-x2Go3d4DM-rOrtIZLkTeC3t8ap45com6E")
 
 def run(cmd, capture=False):
     if capture:
@@ -69,17 +70,22 @@ def login_and_get_data():
     auth_result = run("browser-use eval 'window.props.USER.auth'", capture=True)
     print(f"auth: {auth_result.stdout}")
     
-    # === SESIDS: proviamo con cookies get ===
+    # === SESIDS: tentativo con cookies get ===
     print("\n🍪 Tentativo cookies get...")
     cookies = run("browser-use cookies get", capture=True)
-    print(f"Cookies: {cookies.stdout[:500]}")
+    cookies_text = cookies.stdout if cookies else ""
+    print(f"Cookies: {cookies_text[:500]}")
     
-    sesids_match = re.search(r'sesids=([^;]+)', cookies.stdout)
+    sesids_match = re.search(r'sesids=([^;]+)', cookies_text)
+    if not sesids_match:
+        sesids_match = re.search(r"'sesids':\s*'([^']+)'", cookies_text)
+    
     if sesids_match:
         sesids = sesids_match.group(1)
         print(f"✅ sesids = {sesids}")
     else:
         sesids = None
+        print("⚠️ sesids non trovato (probabilmente HTTP-only)")
     
     print("\n" + "=" * 60)
     if user_id:
@@ -87,20 +93,35 @@ def login_and_get_data():
         if sesids:
             print(f"🎉 sesids = {sesids}")
         else:
-            print("⚠️ sesids non letto (HTTP-only), ma abbiamo user_id!")
+            print("💡 Nota: sesids è HTTP-only, ma la sessione è autenticata!")
+            print("   Puoi usare il browser autenticato per fare richieste.")
         return sesids, user_id
     else:
-        print("❌ Login fallito")
+        print("❌ Login fallito - window.props.USER non trovato")
         return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
-    sesids, user_id = login_and_get_data()
-    print("=" * 60)
-    if user_id:
-        print(f"🎉 RISULTATO: sesids={sesids}, user_id={user_id}")
-    else:
-        print("❌ FALLITO")
+    print("Browser Use Cloud - Estrazione dati da window.props")
+    print(f"API Key: {API_KEY[:30]}...")
     print("=" * 60)
     
-    run("browser-use close --all")
+    sesids, user_id = login_and_get_data()
+    
+    print("\n" + "=" * 60)
+    if user_id:
+        print(f"🎉 RISULTATO: user_id={user_id}")
+        if sesids:
+            print(f"🎉 sesids={sesids}")
+        else:
+            print("⚠️ sesids non accessibile (HTTP-only)")
+    else:
+        print("❌ FALLITO - Login non riuscito")
+    print("=" * 60)
+    
+    # Mantieni la sessione aperta per usarla
+    print("\n💡 La sessione autenticata è ancora attiva.")
+    print("   Puoi usare 'browser-use open' per fare richieste autenticate.")
+    
+    # Non chiudere! (commentato)
+    # run("browser-use close --all")
