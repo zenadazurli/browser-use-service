@@ -3,7 +3,6 @@ import time
 import re
 import os
 
-# NUOVA API KEY
 API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_Hm4Ml3w-doEMXmHGdlmm2YIjPGXsZpWWoBkVuEAGb_o")
 
 def run(cmd, capture=False):
@@ -12,26 +11,58 @@ def run(cmd, capture=False):
     else:
         subprocess.run(cmd, shell=True)
 
-def login_and_get_cookies():
-    print("🚀 Login e cattura cookie...")
+def kill_everything():
+    """Uccide ASSOLUTAMENTE TUTTO prima di iniziare"""
+    print("🔪 Uccisione TOTALE di tutte le sessioni...")
     
-    # Pulizia iniziale
+    # Lista completa di comandi per uccidere qualsiasi cosa
+    commands = [
+        "browser-use close --all",
+        "browser-use cloud logout",
+        "browser-use cloud v2 DELETE /browsers",
+        "browser-use close --all",
+    ]
+    
+    for cmd in commands:
+        run(cmd)
+        time.sleep(2)
+    
+    print("⏳ Attesa 15 secondi per liberare completamente...")
+    time.sleep(15)
+    
+    # Verifica finale
     run("browser-use close --all")
     time.sleep(3)
+
+def login_and_get_cookies():
+    print("🚀 Login con uccisione TOTALE sessioni...")
+    
+    # 1. UCCIDI TUTTO (il passo più importante!)
+    kill_everything()
+    
+    # 2. Configura API key
     run(f"browser-use config set api_key {API_KEY}")
     time.sleep(2)
     
-    # Connessione al cloud
-    print("🔌 Connessione al Cloud...")
-    run("browser-use cloud connect")
+    # 3. Connetti UNA VOLTA SOLA
+    print("🔌 Connessione singola al Cloud...")
+    result = run("browser-use cloud connect", capture=True)
+    print(f"   {result.stdout[:200] if result else ''}")
     time.sleep(5)
     
-    # 1. Apri login
+    # 4. Verifica che la connessione sia attiva
+    check = run("browser-use eval '1+1'", capture=True)
+    if "2" not in check.stdout:
+        print("❌ Connessione fallita, riprovo...")
+        run("browser-use cloud connect")
+        time.sleep(5)
+    
+    # 5. Apri login
     print("🌐 Apertura login...")
     run("browser-use open https://www.easyhits4u.com/logon/")
     time.sleep(25)
     
-    # 2. Compila form
+    # 6. Compila form
     print("📝 Compilazione form...")
     run('browser-use keys "Tab"')
     time.sleep(1)
@@ -42,67 +73,43 @@ def login_and_get_cookies():
     run('browser-use type "DDnmVV45!!"')
     time.sleep(1)
     
-    # 3. Invio login
+    # 7. Invio login
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
     
-    # 4. Attesa che il login venga elaborato
+    # 8. Attesa login
     print("⏳ Attesa login (30 secondi)...")
     time.sleep(30)
     
-    # 5. Verifica URL (controllo se il redirect è avvenuto)
-    result = run("browser-use eval 'window.location.href'", capture=True)
-    current_url = result.stdout.strip() if result else ""
-    print(f"📍 URL dopo login: {current_url}")
-    
-    # 6. Prendi cookie immediatamente
+    # 9. Prendi cookie
     print("\n🍪 Estrazione cookie...")
+    cookies = run("browser-use cookies get", capture=True)
+    cookies_text = cookies.stdout if cookies else ""
+    print(f"Output: {cookies_text[:500]}")
     
-    for attempt in range(10):
-        print(f"   Tentativo {attempt+1}/10...")
-        
-        # Prendi cookie con URL esplicito
-        cookies = run("browser-use cookies get --url https://www.easyhits4u.com", capture=True)
-        cookies_text = cookies.stdout if cookies else ""
-        
-        if attempt == 0:
-            print(f"   Output: {cookies_text[:500]}")
-        
-        # Cerca sesids e user_id in tutti i formati possibili
-        sesids = re.search(r'sesids=([^;]+)', cookies_text) or re.search(r"'sesids':\s*'([^']+)'", cookies_text) or re.search(r'"sesids":\s*"([^"]+)"', cookies_text)
-        user_id = re.search(r'user_id=([^;]+)', cookies_text) or re.search(r"'user_id':\s*'([^']+)'", cookies_text) or re.search(r'"user_id":\s*"([^"]+)"', cookies_text)
-        
-        if sesids and user_id:
-            print(f"\n🎉🎉🎉 SUCCESSO! 🎉🎉🎉")
-            print(f"   sesids = {sesids.group(1)}")
-            print(f"   user_id = {user_id.group(1)}")
-            return sesids.group(1), user_id.group(1)
-        
-        time.sleep(3)
+    # Cerca sesids e user_id
+    sesids = re.search(r'sesids=([^;]+)', cookies_text) or re.search(r"'sesids':\s*'([^']+)'", cookies_text)
+    user_id = re.search(r'user_id=([^;]+)', cookies_text) or re.search(r"'user_id':\s*'([^']+)'", cookies_text)
     
-    print("\n❌ Cookie non trovati dopo 10 tentativi")
+    if sesids and user_id:
+        print(f"\n🎉 SUCCESSO! sesids={sesids.group(1)}, user_id={user_id.group(1)}")
+        return sesids.group(1), user_id.group(1)
+    
+    print("❌ Cookie non trovati")
     return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Browser Use Cloud - EasyHits4U")
-    print(f"API Key: {API_KEY[:30]}...")
+    print("Browser Use Cloud - Uccisione Totale Sessioni")
     print("=" * 60)
     
     sesids, user_id = login_and_get_cookies()
     
     print("\n" + "=" * 60)
     if sesids and user_id:
-        print("🎉🎉🎉 RISULTATO FINALE: SUCCESSO! 🎉🎉🎉")
-        print(f"   sesids = {sesids}")
-        print(f"   user_id = {user_id}")
+        print(f"🎉 RISULTATO: sesids={sesids}, user_id={user_id}")
     else:
-        print("❌ RISULTATO FINALE: FALLITO")
-        print("\n💡 Possibili cause:")
-        print("   - Turnstile non risolto")
-        print("   - Credenziali errate")
-        print("   - Limite sessioni Browser Use (HTTP 429)")
-        print("   - Piano Railway free (limiti egress)")
+        print("❌ FALLITO")
     print("=" * 60)
     
     # Cleanup finale
