@@ -12,24 +12,28 @@ def run(cmd, capture=False):
         subprocess.run(cmd, shell=True)
 
 def login_and_get_data():
-    print("🚀 Login con estrazione dati dall'HTML...")
+    print("🚀 Login semplice senza kill...")
     
-    # Pulizia
+    # Solo close, niente logout o delete
     run("browser-use close --all")
-    time.sleep(3)
+    time.sleep(2)
+    
+    # Configura API key
     run(f"browser-use config set api_key {API_KEY}")
     time.sleep(2)
     
-    # Connessione
+    # Connetti al cloud (senza forzare)
     print("🔌 Connessione al Cloud...")
-    run("browser-use cloud connect")
+    result = run("browser-use cloud connect", capture=True)
+    print(f"   {result.stdout[:200] if result else ''}")
     time.sleep(5)
     
-    # Login
+    # Apri login
     print("🌐 Apertura login...")
     run("browser-use open https://www.easyhits4u.com/logon/")
-    time.sleep(20)
+    time.sleep(25)
     
+    # Compila form
     print("📝 Compilazione form...")
     run('browser-use keys "Tab"')
     time.sleep(1)
@@ -40,81 +44,64 @@ def login_and_get_data():
     run('browser-use type "DDnmVV45!!"')
     time.sleep(1)
     
+    # Invio login
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
-    time.sleep(25)
     
-    # Naviga a /surf/
-    print("🎯 Navigazione a /surf/...")
-    run("browser-use open https://www.easyhits4u.com/surf/?surftype=2&q=start")
-    time.sleep(15)
+    # Attesa lunga
+    print("⏳ Attesa redirect e caricamento (45 secondi)...")
+    time.sleep(45)
     
-    # === ESTRARRE I DATI DALL'HTML ===
-    print("\n📊 Estrazione dati dalla pagina...")
+    # Verifica se siamo loggati
+    print("\n🔍 Verifica stato login...")
     
-    # Prendi l'HTML della pagina
-    html_result = run("browser-use get html", capture=True)
-    html_content = html_result.stdout if html_result else ""
+    # Controlla URL
+    url_result = run("browser-use eval 'window.location.href'", capture=True)
+    current_url = url_result.stdout.strip() if url_result else ""
+    print(f"📍 URL: {current_url}")
     
-    # Estrai user_id da window.props
-    user_id_match = re.search(r'"id":\s*(\d+)', html_content)
-    if user_id_match:
-        user_id = user_id_match.group(1)
-        print(f"✅ user_id = {user_id}")
-    else:
-        user_id = None
-    
-    # Estrai login name
-    login_match = re.search(r'"login":\s*"([^"]+)"', html_content)
-    if login_match:
-        login = login_match.group(1)
-        print(f"✅ login = {login}")
-    
-    # Estrai auth status
-    auth_match = re.search(r'"auth":\s*(true|false)', html_content)
-    if auth_match:
-        auth = auth_match.group(1)
-        print(f"✅ auth = {auth}")
-    
-    # Estrai sesids dalla stringa window.props (se presente)
-    sesids_match = re.search(r'"sesids":\s*"([^"]+)"', html_content)
-    if sesids_match:
-        sesids = sesids_match.group(1)
-        print(f"✅ sesids = {sesids}")
-    else:
-        sesids = None
-    
-    # Prova anche a cercare nei cookie (tentativo)
-    cookies = run("browser-use cookies get", capture=True)
-    cookies_text = cookies.stdout if cookies else ""
-    if not sesids:
-        sesids_match2 = re.search(r'sesids=([^;]+)', cookies_text)
-        if sesids_match2:
-            sesids = sesids_match2.group(1)
-            print(f"✅ sesids (da cookie) = {sesids}")
-    
-    print("\n" + "=" * 60)
-    if user_id:
-        print(f"🎉 SUCCESSO! user_id = {user_id}")
+    if "account" in current_url or "surf" in current_url:
+        print("✅ Sembra che siamo loggati!")
+        
+        # Prendi l'HTML
+        html_result = run("browser-use get html", capture=True)
+        html = html_result.stdout if html_result else ""
+        
+        # Cerca user_id
+        user_match = re.search(r'"id":\s*(\d+)', html)
+        if user_match:
+            user_id = user_match.group(1)
+            print(f"🎉 user_id = {user_id}")
+        else:
+            user_id = None
+        
+        # Cerca sesids
+        sesids_match = re.search(r'sesids=([^;]+)', html)
+        if not sesids_match:
+            sesids_match = re.search(r'"sesids":\s*"([^"]+)"', html)
+        sesids = sesids_match.group(1) if sesids_match else None
+        
         if sesids:
             print(f"🎉 sesids = {sesids}")
+        
         return sesids, user_id
     else:
-        print("❌ user_id non trovato - login fallito")
+        print("❌ Non siamo loggati (URL ancora su login)")
         return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Browser Use Cloud - Estrazione dati dall'HTML")
+    print("Browser Use Cloud - Login Semplice")
     print("=" * 60)
     
     sesids, user_id = login_and_get_data()
     
     print("\n" + "=" * 60)
     if user_id:
-        print(f"🎉 RISULTATO: user_id={user_id}, sesids={sesids}")
+        print(f"🎉 SUCCESSO! user_id={user_id}, sesids={sesids}")
     else:
         print("❌ FALLITO")
     print("=" * 60)
     
-    run("browser-use close --all")
+    # Non chiudere!
+    # run("browser-use close --all")
