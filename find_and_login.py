@@ -3,6 +3,7 @@ import time
 import re
 import os
 
+# NUOVA API KEY
 API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu__j__S3W9tN3zjAX1nShO7WaELi3oH0MDMHCD9TvPFiA")
 
 def run(cmd, capture=False):
@@ -11,29 +12,30 @@ def run(cmd, capture=False):
     else:
         subprocess.run(cmd, shell=True)
 
-def login_and_get_data():
-    print("🚀 Login semplice senza kill...")
+def login_and_get_cookies():
+    print("🚀 Login con navigazione a /surf/...")
     
-    # Solo close, niente logout o delete
+    # Pulizia iniziale
+    print("🧹 Pulizia sessioni...")
     run("browser-use close --all")
-    time.sleep(2)
+    time.sleep(3)
     
     # Configura API key
+    print(f"🔑 Configura API key...")
     run(f"browser-use config set api_key {API_KEY}")
     time.sleep(2)
     
-    # Connetti al cloud (senza forzare)
+    # Connetti al cloud
     print("🔌 Connessione al Cloud...")
-    result = run("browser-use cloud connect", capture=True)
-    print(f"   {result.stdout[:200] if result else ''}")
+    run("browser-use cloud connect")
     time.sleep(5)
     
-    # Apri login
+    # 1. Apri pagina login
     print("🌐 Apertura login...")
     run("browser-use open https://www.easyhits4u.com/logon/")
-    time.sleep(25)
+    time.sleep(20)
     
-    # Compila form
+    # 2. Compila form con TAB
     print("📝 Compilazione form...")
     run('browser-use keys "Tab"')
     time.sleep(1)
@@ -44,64 +46,92 @@ def login_and_get_data():
     run('browser-use type "DDnmVV45!!"')
     time.sleep(1)
     
-    # Invio login
+    # 3. Invio login
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
     
-    # Attesa lunga
-    print("⏳ Attesa redirect e caricamento (45 secondi)...")
-    time.sleep(45)
+    # 4. Attesa redirect a /account/
+    print("⏳ Attesa redirect a /account/ (20 secondi)...")
+    time.sleep(20)
     
-    # Verifica se siamo loggati
-    print("\n🔍 Verifica stato login...")
+    # 5. NAVIGA DIRETTAMENTE A /surf/ (LA CHIAVE!)
+    print("🎯 Navigazione a /surf/?surftype=2&q=start...")
+    run("browser-use open https://www.easyhits4u.com/surf/?surftype=2&q=start")
     
-    # Controlla URL
-    url_result = run("browser-use eval 'window.location.href'", capture=True)
-    current_url = url_result.stdout.strip() if url_result else ""
-    print(f"📍 URL: {current_url}")
+    # 6. Attesa che la pagina surf carichi
+    print("⏳ Attesa caricamento pagina surf (15 secondi)...")
+    time.sleep(15)
     
-    if "account" in current_url or "surf" in current_url:
-        print("✅ Sembra che siamo loggati!")
+    # 7. Prova a cliccare Start Surfing
+    print("🖱️ Click su Start Surfing...")
+    run('browser-use click "Start Surfing"')
+    time.sleep(10)
+    
+    # 8. ORA prendi i cookie
+    print("\n🍪 Estrazione cookie...")
+    
+    for attempt in range(15):
+        print(f"   Tentativo {attempt+1}/15...")
         
-        # Prendi l'HTML
-        html_result = run("browser-use get html", capture=True)
-        html = html_result.stdout if html_result else ""
+        # Metodo 1: document.cookie
+        doc = run("browser-use eval 'document.cookie'", capture=True)
+        doc_text = doc.stdout if doc else ""
         
-        # Cerca user_id
-        user_match = re.search(r'"id":\s*(\d+)', html)
-        if user_match:
-            user_id = user_match.group(1)
-            print(f"🎉 user_id = {user_id}")
-        else:
-            user_id = None
+        sesids_match = re.search(r'sesids=([^;]+)', doc_text)
+        user_id_match = re.search(r'user_id=([^;]+)', doc_text)
         
-        # Cerca sesids
-        sesids_match = re.search(r'sesids=([^;]+)', html)
-        if not sesids_match:
-            sesids_match = re.search(r'"sesids":\s*"([^"]+)"', html)
-        sesids = sesids_match.group(1) if sesids_match else None
+        if sesids_match and user_id_match:
+            sesids = sesids_match.group(1)
+            user_id = user_id_match.group(1)
+            print(f"\n🎉🎉🎉 SUCCESSO! 🎉🎉🎉")
+            print(f"   sesids = {sesids}")
+            print(f"   user_id = {user_id}")
+            return sesids, user_id
         
-        if sesids:
-            print(f"🎉 sesids = {sesids}")
+        # Metodo 2: browser-use cookies get
+        cookies = run("browser-use cookies get", capture=True)
+        cookies_text = cookies.stdout if cookies else ""
         
-        return sesids, user_id
-    else:
-        print("❌ Non siamo loggati (URL ancora su login)")
-        return None, None
+        sesids_match2 = re.search(r"'sesids': '([^']+)'", cookies_text)
+        user_id_match2 = re.search(r"'user_id': '([^']+)'", cookies_text)
+        
+        if sesids_match2 and user_id_match2:
+            print(f"\n🎉 SUCCESSO (metodo 2)!")
+            print(f"   sesids = {sesids_match2.group(1)}")
+            print(f"   user_id = {user_id_match2.group(1)}")
+            return sesids_match2.group(1), user_id_match2.group(1)
+        
+        # Mostra progresso
+        if doc_text and attempt % 5 == 0:
+            cookies_found = re.findall(r'([a-z_]+)=', doc_text)
+            print(f"      Cookie presenti: {cookies_found[:8] if cookies_found else 'nessuno'}")
+        
+        time.sleep(3)
+    
+    print("\n❌ Cookie non trovati dopo 15 tentativi")
+    return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Browser Use Cloud - Login Semplice")
+    print("Browser Use Cloud - EasyHits4U")
+    print(f"API Key: {API_KEY[:30]}...")
     print("=" * 60)
     
-    sesids, user_id = login_and_get_data()
+    sesids, user_id = login_and_get_cookies()
     
     print("\n" + "=" * 60)
-    if user_id:
-        print(f"🎉 SUCCESSO! user_id={user_id}, sesids={sesids}")
+    if sesids and user_id:
+        print("🎉🎉🎉 RISULTATO FINALE: SUCCESSO! 🎉🎉🎉")
+        print(f"   sesids = {sesids}")
+        print(f"   user_id = {user_id}")
     else:
-        print("❌ FALLITO")
+        print("❌ RISULTATO FINALE: FALLITO")
+        print("\nPossibili cause:")
+        print("1. Limite sessioni concorrenti (HTTP 429)")
+        print("2. Tempi di attesa insufficienti")
+        print("3. Problemi con Turnstile")
     print("=" * 60)
     
-    # Non chiudere!
-    # run("browser-use close --all")
+    # Cleanup
+    print("\n🔚 Chiusura sessione...")
+    run("browser-use close --all")
