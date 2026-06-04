@@ -3,7 +3,8 @@ import time
 import re
 import os
 
-API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_eYG0cuuk1jkNcpIWUbvTiKCE11OKR4gGniXqeqzmMPY")
+# NUOVA API KEY
+API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_wv8fkZC5bVGk4QJiIeMDI3Ce7tAexKiNi3sfPbTTeSU")
 
 def run(cmd, capture=False):
     if capture:
@@ -12,25 +13,29 @@ def run(cmd, capture=False):
         subprocess.run(cmd, shell=True)
 
 def login_and_get_cookies():
-    print("🚀 Login con browser-use cookies get --url...")
+    print("🚀 Login con nuova API key...")
     
-    # Pulizia base
+    # 1. Pulizia sessioni
+    print("🧹 Pulizia sessioni...")
     run("browser-use close --all")
-    time.sleep(2)
+    time.sleep(3)
+    
+    # 2. Configura API key
+    print(f"🔑 Configura API key...")
     run(f"browser-use config set api_key {API_KEY}")
     time.sleep(2)
     
-    # Connessione
+    # 3. Connetti al cloud
     print("🔌 Connessione al Cloud...")
     run("browser-use cloud connect")
     time.sleep(5)
     
-    # 1. Apri login
-    print("🌐 Apertura login...")
+    # 4. Apri login
+    print("🌐 Apertura pagina login...")
     run("browser-use open https://www.easyhits4u.com/logon/")
-    time.sleep(20)
+    time.sleep(25)
     
-    # 2. Compila form
+    # 5. Compila form con TAB
     print("📝 Compilazione form...")
     run('browser-use keys "Tab"')
     time.sleep(1)
@@ -41,17 +46,25 @@ def login_and_get_cookies():
     run('browser-use type "DDnmVV45!!"')
     time.sleep(1)
     
-    # 3. Invio login
+    # 6. Invio login
     print("🔑 Invio login...")
     run('browser-use keys "Enter"')
-    time.sleep(30)
     
-    # 4. Naviga a /surf/
-    print("🎯 Navigazione a /surf/...")
+    # 7. Attesa redirect
+    print("⏳ Attesa redirect (35 secondi)...")
+    time.sleep(35)
+    
+    # 8. Verifica URL
+    result = run("browser-use eval 'window.location.href'", capture=True)
+    current_url = result.stdout.strip() if result else ""
+    print(f"📍 URL dopo login: {current_url}")
+    
+    # 9. Naviga a /surf/
+    print("🎯 Navigazione a /surf/?surftype=2&q=start...")
     run("browser-use open https://www.easyhits4u.com/surf/?surftype=2&q=start")
     time.sleep(20)
     
-    # 5. Prendi cookie con --url
+    # 10. Prendi cookie con --url
     print("\n🍪 Estrazione cookie con browser-use cookies get --url...")
     
     target_url = "https://www.easyhits4u.com/surf/?surftype=2&q=start"
@@ -59,27 +72,23 @@ def login_and_get_cookies():
     for attempt in range(15):
         print(f"   Tentativo {attempt+1}/15...")
         
-        # USO LA FUNZIONE NATIVA CON --url
         cmd = f'browser-use cookies get --url "{target_url}"'
         cookies = run(cmd, capture=True)
         cookies_text = cookies.stdout if cookies else ""
         
         if attempt == 0:
-            print(f"   Output completo:\n{cookies_text[:500]}")
+            print(f"   Output: {cookies_text[:500]}")
         
-        # Cerca sesids e user_id nel formato JSON
+        # Cerca sesids e user_id in vari formati
         sesids = re.search(r'"sesids"\s*:\s*"([^"]+)"', cookies_text)
-        user_id = re.search(r'"user_id"\s*:\s*"([^"]+)"', cookies_text)
-        
-        # Cerca anche formato 'name': 'value'
         if not sesids:
             sesids = re.search(r"'sesids':\s*'([^']+)'", cookies_text)
-        if not user_id:
-            user_id = re.search(r"'user_id':\s*'([^']+)'", cookies_text)
-        
-        # Cerca formato name=value
         if not sesids:
             sesids = re.search(r'sesids=([^;]+)', cookies_text)
+        
+        user_id = re.search(r'"user_id"\s*:\s*"([^"]+)"', cookies_text)
+        if not user_id:
+            user_id = re.search(r"'user_id':\s*'([^']+)'", cookies_text)
         if not user_id:
             user_id = re.search(r'user_id=([^;]+)', cookies_text)
         
@@ -91,24 +100,28 @@ def login_and_get_cookies():
         
         time.sleep(3)
     
-    print("\n❌ Cookie non trovati")
+    print("\n❌ Cookie non trovati dopo 15 tentativi")
     return None, None
 
 if __name__ == "__main__":
     print("=" * 60)
     print("Browser Use Cloud - EasyHits4U")
-    print("Uso di browser-use cookies get --url")
+    print(f"API Key: {API_KEY[:30]}...")
     print("=" * 60)
     
     sesids, user_id = login_and_get_cookies()
     
     print("\n" + "=" * 60)
     if sesids and user_id:
-        print("🎉 RISULTATO FINALE: SUCCESSO!")
+        print("🎉🎉🎉 RISULTATO FINALE: SUCCESSO! 🎉🎉🎉")
         print(f"   sesids = {sesids}")
         print(f"   user_id = {user_id}")
     else:
         print("❌ RISULTATO FINALE: FALLITO")
+        print("\n💡 Diagnostica:")
+        print("   Se 'URL dopo login' NON contiene /account/ o /surf/ → login fallito")
+        print("   Se 'Output' è cookies: [] → nessun cookie, login non autenticato")
+        print("   Se HTTP 402 → limite piano free, upgrade necessario")
     print("=" * 60)
     
     run("browser-use close --all")
