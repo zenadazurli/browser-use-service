@@ -3,7 +3,7 @@ import time
 import re
 import os
 
-API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu_IIv4wqnq3-x2Go3d4DM-rOrtIZLkTeC3t8ap45com6E")
+API_KEY = os.environ.get("BROWSER_USE_API_KEY", "bu__j__S3W9tN3zjAX1nShO7WaELi3oH0MDMHCD9TvPFiA")
 
 def run(cmd, capture=False):
     if capture:
